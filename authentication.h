@@ -10,7 +10,7 @@ struct user{
 
 char *users_file = "users.txt";
 
-char *get_current_time(){
+char *get_current_time(char *s, int size){
     time_t rawtime;
     struct tm * mytime;
 
