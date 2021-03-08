@@ -10,9 +10,20 @@ struct user{
 
 char *users_file = "users.txt";
 
+char *get_current_time(){
+    time_t rawtime;
+    struct tm * mytime;
+
+    time ( &rawtime );
+    mytime = localtime ( &rawtime );
+    
+    bzero(s, size);
+    sprintf(s, "%d:%d:%d\n", mytime->tm_hour+2, mytime->tm_min, mytime->tm_sec);
+    return s;
+}
 
 char *get_current_date(char *s, int size){
-	time_t t = time(NULL);
+    time_t t = time(NULL);
     struct tm *tm = localtime(&t);
     
     bzero(s, size);
