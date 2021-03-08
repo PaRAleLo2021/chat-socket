@@ -121,22 +121,35 @@ void concurent_server(){
 
 void *client_connection(void *arg){
   char message[MAXBUF];
-
+    
 	no_clients++;
-	int *client_sockfd=arg;
+	int *client_sockfd=(int *)malloc(sizeof(int));
+    if(client_sockfd==NULL)
+    {
+        printf("Memory not allocated\n");
+        exit(0);
+    }
+    *client_sockfd=*(int *)arg;
   fcntl(*client_sockfd, F_SETFL, O_NONBLOCK);
 
+  printf("Someone entered\n");
   send_message("Someone entered\n", *client_sockfd);
 
 	while(1){
 		int rcv_len = recv(*client_sockfd, message, MAXBUF, 0);
+        if(rcv_len==0)
+        {
+            printf("Someone exited\n");
+            send_message("Someone exited\n", *client_sockfd);
+            break;
+        }
 		if (rcv_len > 0){
-      printf("Received msg: %s", message);
-      if(strcmp("exit\n", message)==0){
-        printf("Someone exited\n");
-        send_message("Someone exited\n", *client_sockfd);
-        break;
-      }
+            printf("Received msg: %s", message);
+            if(strcmp("exit\n", message)==0){
+                printf("Someone exited\n");
+                send_message("Someone exited\n", *client_sockfd);
+                break;
+            }
 			if(strlen(message) > 0){
 				send_message(message, *client_sockfd);
 			}
@@ -149,6 +162,6 @@ void *client_connection(void *arg){
   queue_remove(*client_sockfd);
   no_clients--;
   pthread_detach(pthread_self());
-
+    free(client_sockfd);
 	return NULL;
 }
