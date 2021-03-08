@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include "function.c"
+#include "authentication.h"
 
 #define SERVER_ADDRESS "localhost"
 #define SERVER_PORT 5000
@@ -50,9 +51,21 @@ int main ( void) {
 	exit(0);
 }
 
+void reading_fct()
+{
+    char buf[MAXBUF];
+    recv(client_sockfd, buf, MAXBUF, 0);
+    printf("%s", buf);
+    fgets(buf, MAXBUF, stdin);
+    send(client_sockfd, buf, MAXBUF, 0);
+}
+
 void client_io(int sockfd){
 	client_sockfd = sockfd;
-
+    
+    /*reading_fct();
+    reading_fct();*/
+    
 	pthread_t recv_t;
   if(pthread_create(&recv_t, NULL, (void *) recv_msg, NULL)!=0){
 		printf("error pthread");

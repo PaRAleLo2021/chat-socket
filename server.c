@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include "function.c"
+#include "authentication.h"
 
 #define SERVER_PORT 5000
 #define MAXBUF 2048
@@ -121,6 +122,7 @@ void concurent_server(){
 
 void *client_connection(void *arg){
   char message[MAXBUF];
+    //char welcome_string[MAXBUF];
     
 	no_clients++;
 	int *client_sockfd=(int *)malloc(sizeof(int));
@@ -128,10 +130,46 @@ void *client_connection(void *arg){
     {
         printf("Memory not allocated\n");
         exit(0);
-    }
+    }    
     *client_sockfd=*(int *)arg;
   fcntl(*client_sockfd, F_SETFL, O_NONBLOCK);
-
+/*
+  bzero(welcome_string, MAXBUF);
+  strncpy(welcome_string, "Welcome!\nWhat should people call you?\n", MAXBUF);
+  
+  send(*client_sockfd, welcome_string, MAXBUF, 0);
+  
+  printf("***\n");
+  
+  
+  char username[50];
+  char password[50];
+  recv(*client_sockfd, username, 50, 0);
+  
+  
+  strncpy(welcome_string, "Password?\n", MAXBUF);
+  send(*client_sockfd, welcome_string, MAXBUF, 0);
+  
+  recv(*client_sockfd, password, 50, 0);
+  
+  
+  int size=11;
+  char s[size];
+  strcpy(s, get_current_date(s, size));
+  struct user *this_user=search_user(username);
+  if(this_user==NULL)
+  {
+      add_user(username, password, s, s);
+  }
+  
+  int verify=check_password(username, password);
+  if(verify==0)
+  {
+      printf("Access denied\n");
+      return NULL;
+  }
+      
+  queue_add(*client_sockfd);*/
   printf("Someone entered\n");
   send_message("Someone entered\n", *client_sockfd);
 
