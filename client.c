@@ -5,35 +5,26 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <pthread.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-//#include ” netio.h”
+#include "function.c"
+
 #define SERVER_ADDRESS "localhost"
 #define SERVER_PORT 5000
+#define MAXBUF 2048
 
-int set_addr(struct sockaddr_in *addr, char *name,
-	u_int32_t inaddr, short sin_port){
-	struct hostent *h;
+int client_sockfd;
 
-	memset((void *)addr, 0, sizeof(*addr));
-	addr->sin_family = AF_INET;
-	if(name != NULL){
-		h=gethostbyname(name);
-		if(h == NULL)
-			return -1;
-		addr->sin_addr.s_addr = *(u_int32_t *) h->h_addr_list[0];
-	}
-	else
-		addr->sin_addr.s_addr=htonl(inaddr);
-	addr->sin_port = htons(sin_port);
-	return 0;
-}
+void client_io(int sockfd);
+void* send_msg(void *arg);
+void* recv_msg(void *arg);
 
 int main ( void) {
 	int sockfd;
 	struct sockaddr_in local_addr, remote_addr;
-	if(-1 == (sockfd = socket(PF_INET, SOCK_DGRAM, 0))){
+	if(-1 == (sockfd = socket(AF_INET, SOCK_STREAM, 0))){
 		printf("Eroare la socket()\n");
 		exit(1);
 	}
@@ -52,8 +43,61 @@ int main ( void) {
 		printf("Eroare la connect()\n");
 	exit(1);
 	}
-	write(sockfd, "abcd", strlen ("abcd"));
-	write(sockfd, "ab", strlen("ab"));
-	write(sockfd, "cd", strlen("cd"));
+
+	client_io(sockfd);
+
+	close(sockfd);
 	exit(0);
+}
+
+void client_io(int sockfd){
+	client_sockfd = sockfd;
+
+	pthread_t recv_t;
+  if(pthread_create(&recv_t, NULL, (void *) recv_msg, NULL)!=0){
+		printf("error pthread");
+    exit(1);
+	}
+
+	pthread_t send_t;
+  if(pthread_create(&send_t, NULL, (void *) send_msg, NULL)!=0){
+		printf("error pthread");
+		exit(1);
+	}
+
+
+	pthread_join(recv_t, NULL);
+  pthread_join(send_t, NULL);
+}
+
+
+void *send_msg(void *arg){
+	char message[MAXBUF];
+	while(1){
+		printf(">> ");
+		fflush(stdout);
+	  fgets(message, MAXBUF, stdin);
+		int sl=0;
+		if((sl=send(client_sockfd, message, MAXBUF, 0)) <=0)
+			return NULL;
+		printf("msg sent %d\n", sl);
+		if(strcmp(message, "exit\n")==0){
+			printf("\nExited chat\n");
+			exit(1);
+		}
+		bzero(message, MAXBUF);
+	}
+}
+
+void *recv_msg(void *arg){
+	char message[MAXBUF];
+	while(1){
+		if(recv(client_sockfd, message, MAXBUF, 0) >0){
+			printf("%s", message);
+			printf(">> ");
+			fflush(stdout);
+		}
+
+		bzero(message, MAXBUF);
+	}
 }

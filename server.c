@@ -1,168 +1,154 @@
 #include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <signal.h>
 #include <sys/types.h>
-#include <sys/select.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/ioctl.h>
 #include <netinet/in.h>
-#include <syslog.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <string.h>
 #include <netdb.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include "function.c"
 
-//#include ”netio.h”
+#define SERVER_PORT 5000
+#define MAXBUF 2048
+#define MAXCLIENTS 8
 
-#define BUFFSZ 1500
+int clients[MAXCLIENTS];
+pthread_mutex_t clients_mutex;
+int no_clients = 0;
 
-/*seturile de descriptori urmariti*/
-fd_set rd_set , wr_set;
-int sfd;
+void concurent_server();
 
-int set_addr(struct sockaddr_in *addr, char *name,
-	u_int32_t inaddr, short sin_port){
-	struct hostent *h;
+void *client_connection(void *arg);
 
-	memset((void *)addr, 0, sizeof(*addr));
-	addr->sin_family = AF_INET;
-	if(name != NULL){
-		h=gethostbyname(name);
-		if(h == NULL)
-			return -1;
-		addr->sin_addr.s_addr = *(u_int32_t *) h->h_addr_list[0];
-	}
-	else
-		addr->sin_addr.s_addr=htonl(inaddr);
-	addr->sin_port = htons(sin_port);
-	return 0;
-}
-
-void sigterm_handler(int s){
-	syslog(LOG_INFO, "ex5_server stopped");
-	exit(0);
-}
-
-void daemonize(void){
-	int i, maxfd;
-	int fd;
-
-	maxfd = getdtablesize();
-
-	for(i=0; i<maxfd; i++)
-		close(i);
-	chdir("/");
-	switch(fork()){
-		case -1:
-			syslog(LOG_ERR, "Eroare la fork()\n");
-		case 0: /*fiu*/
+/**Add client in array**/
+void queue_add(int sockfd){
+  pthread_mutex_lock(&clients_mutex);
+	for(int i=0; i < MAXCLIENTS; ++i){
+		if(!clients[i]){
+			clients[i] = sockfd;
 			break;
-		default: /*parinte*/
-			exit(0);
+		}
 	}
-	setpgid( 0, 0);
-	fd = open ("/dev/tty", O_RDWR);
-	if(fd >= 0) {
-		ioctl(fd, TIOCNOTTY);
-		close(fd);
-		syslog(LOG_INFO, "ex5_server started");
+	pthread_mutex_unlock(&clients_mutex);
+}
+
+/* Remove client from array */
+void queue_remove(int sockfd){
+	pthread_mutex_lock(&clients_mutex);
+	for(int i=0; i < MAXCLIENTS; ++i){
+		if(clients[i]){
+			if(clients[i] == sockfd){
+				clients[i] = 0;
+				break;
+			}
+		}
+	}
+	pthread_mutex_unlock(&clients_mutex);
+}
+
+/**Send message to all clients**/
+void send_message(char *s, int sockfd){
+	pthread_mutex_lock(&clients_mutex);
+	for(int i=0; i<MAXCLIENTS; ++i){
+		if(clients[i]){
+				if(send(clients[i], s, MAXBUF, 0) < 0){
+					printf("error send_message()");
+					break;
+				}
+		}
+	}
+	pthread_mutex_unlock(&clients_mutex);
+}
+
+int main(int argc, char* argv[]){
+  concurent_server();
+  return 0;
+}
+
+
+/***Concurent server***/
+void concurent_server(){
+  int sockfd, client_sockfd;
+  pthread_t tid;
+  pthread_mutex_init(&clients_mutex, NULL);
+
+  //create a new socket
+  if ((sockfd=socket(AF_INET, SOCK_STREAM, 0)) < 0){
+     printf ("error creating a new socket"); exit(1);
+  }
+
+  //reuse address
+  int yes=1;
+  if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1) {
+    printf("error setsockopt()");
+    exit(1);
+  }
+
+  //bind a IP and port to the socket
+  struct sockaddr_in server_addr;
+  set_addr(&server_addr, NULL, INADDR_ANY, SERVER_PORT);
+  if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0){
+     printf ("error bind()"); exit(1);
+  }
+
+  //mark the socket as passive
+  //will accept incoming connections
+  if (listen(sockfd, MAXCLIENTS) < 0){
+     printf ("error listen()"); exit(1);
+  }
+
+  printf("*** Chat Open ***\n");
+
+	while(1){
+    socklen_t len = sizeof(server_addr);
+    client_sockfd=accept(sockfd, (struct sockaddr *)&server_addr, &len);
+
+		/* Check if max clients is reached */
+		if((no_clients + 1) == MAXCLIENTS){
+			printf("Max clients reached. Rejected.");
+			close(client_sockfd);
+			continue;
+		}
+
+		/* Add client to the queue and fork thread */
+		queue_add(client_sockfd);
+		pthread_create(&tid, NULL, &client_connection, (void*)&client_sockfd);
 	}
 }
 
-void main_loop(struct sockaddr_in remote){
-	int ret;
-	char buf[BUFFSZ];
-	char *rpos = buf;
-	char *wpos = buf;
-	char *last = buf+BUFFSZ;
-	int free = BUFFSZ;
-	int avail = 0;
+void *client_connection(void *arg){
+  char message[MAXBUF];
 
-	for (;;){
-		FD_ZERO(&rd_set);
-		FD_ZERO(&wr_set);
-		if(free)
-			FD_SET(sfd, &rd_set);
-		if(avail)
-			FD_SET(sfd, &wr_set);
-		ret = select(sfd+1, &rd_set, &wr_set, NULL, NULL);
-		if(ret == -1) {
-			if(errno == EINTR)
-				continue;
-			syslog(LOG_ERR, "error at select()");
-			exit(1);
-		}
-		if(FD_ISSET(sfd, &wr_set)) {
-			ret = sendto(sfd, wpos, avail, 0,
-				(void *)&remote, sizeof(remote));
-			if(-1 == ret) {
-				syslog(LOG_ERR, "error write()ing");
-			}
-			avail -= ret;
-			wpos += ret;
-			if(avail== 0 && wpos == last) {
-				wpos = rpos = buf;
-				free = BUFFSZ;
+	no_clients++;
+	int *client_sockfd=arg;
+  fcntl(*client_sockfd, F_SETFL, O_NONBLOCK);
+
+  send_message("Someone entered\n", *client_sockfd);
+
+	while(1){
+		int rcv_len = recv(*client_sockfd, message, MAXBUF, 0);
+		if (rcv_len > 0){
+      printf("Received msg: %s", message);
+      if(strcmp("exit\n", message)==0){
+        printf("Someone exited\n");
+        send_message("Someone exited\n", *client_sockfd);
+        break;
+      }
+			if(strlen(message) > 0){
+				send_message(message, *client_sockfd);
 			}
 		}
-		if (FD_ISSET(sfd, &rd_set)) {
-			ret = read(sfd, rpos, free);
-			if(-1 == ret) {
-				syslog(LOG_ERR, "error read()ing");
-				exit(1);
-			}
-			free -= ret;
-			avail += ret;
-			rpos += ret;
-		}
-	}
-}
-
-int main(int argc, char* argv[]) {
-	int port_l, port_r;
-	struct sockaddr_in local;
-	struct sockaddr_in remote;
-
-	if(argc != 4) {
-		printf( "Utilizare: %s port_l adresa portr\n",
-			argv[0]);
-		exit(1);
+		bzero(message, MAXBUF);
 	}
 
-	port_l = atoi(argv[1]);
-	port_r = atoi(argv[3]);
-	if(port_l < 0 || port_r < 0) {
-		printf("Port incorect");
-		exit(1);
-	}
+  /* Delete client from queue and yield thread */
+	close(*client_sockfd);
+  queue_remove(*client_sockfd);
+  no_clients--;
+  pthread_detach(pthread_self());
 
-	daemonize();
-
-	signal(SIGTERM, sigterm_handler);
-	signal(SIGPIPE, SIG_IGN);
-
-	openlog("ex5", 0, LOG_WARNING);
-	sfd = socket(PF_INET, SOCK_DGRAM, 0);
-	if(sfd == -1) {
-		syslog(LOG_ERR, "Could not create socket");
-		exit(1);
-	}
-
-	set_addr(&local, NULL, INADDR_ANY, port_l);
-
-	if(-1 ==
-		bind(sfd, (struct sockaddr *)&local,
-			sizeof(local))) {
-		syslog(LOG_ERR, "Could not bind to local");
-		exit(1);
-	}
-
-	if(-1 == set_addr(&remote, argv[2], 0, port_r)) {
-		syslog(LOG_ERR, "Wrong address");
-		exit(1);
-	}
-	main_loop(remote);
-	exit(0);
+	return NULL;
 }
