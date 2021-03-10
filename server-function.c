@@ -36,8 +36,10 @@ int create_user(int sockfd){
   }
   get_current_date(date, sizeof(date));
 
-  add_user(username, password, date, date);
-  send_mesage(sockfd, "User added.\n", 'S', "server");
+  if(add_user(username, password, date, date)<0)
+		send_mesage(sockfd, "User already exists. Could not add user.\n", 'S', "server");
+	else
+		send_mesage(sockfd, "User added.\n", 'S', "server");
 
 
   return 0;
