@@ -63,6 +63,7 @@ void client_io(int sockfd){
     return;
   }
 
+	printf("\n*** Entered Chat ***\n");
 
 	pthread_t recv_t;
   if(pthread_create(&recv_t, NULL, (void *) recv_msg, NULL)!=0){
