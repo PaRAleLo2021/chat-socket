@@ -10,13 +10,16 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include "function.c"
-#include "authentication.h"
 
 #define SERVER_ADDRESS "localhost"
 #define SERVER_PORT 5000
 #define MAXBUF 2048
 
 int client_sockfd;
+char username[50];
+
+int create_user(int sockfd);
+int client_authentication(int sockfd);
 
 void client_io(int sockfd);
 void* send_msg(void *arg);
@@ -51,21 +54,16 @@ int main ( void) {
 	exit(0);
 }
 
-void reading_fct()
-{
-    char buf[MAXBUF];
-    recv(client_sockfd, buf, MAXBUF, 0);
-    printf("%s", buf);
-    fgets(buf, MAXBUF, stdin);
-    send(client_sockfd, buf, MAXBUF, 0);
-}
-
 void client_io(int sockfd){
 	client_sockfd = sockfd;
-    
-    /*reading_fct();
-    reading_fct();*/
-    
+
+	/*******Authentication******/
+	if(client_authentication(sockfd)<0){
+    printf("Client connection failed\n");
+    return;
+  }
+
+
 	pthread_t recv_t;
   if(pthread_create(&recv_t, NULL, (void *) recv_msg, NULL)!=0){
 		printf("error pthread");
@@ -87,13 +85,10 @@ void client_io(int sockfd){
 void *send_msg(void *arg){
 	char message[MAXBUF];
 	while(1){
-		printf(">> ");
 		fflush(stdout);
 	  fgets(message, MAXBUF, stdin);
-		int sl=0;
-		if((sl=send(client_sockfd, message, MAXBUF, 0)) <=0)
+		if((send_mesage(client_sockfd, message, 'M', username)) <0)
 			return NULL;
-		printf("msg sent %d\n", sl);
 		if(strcmp(message, "exit\n")==0){
 			printf("\nExited chat\n");
 			exit(1);
@@ -103,14 +98,90 @@ void *send_msg(void *arg){
 }
 
 void *recv_msg(void *arg){
-	char message[MAXBUF];
 	while(1){
-		if(recv(client_sockfd, message, MAXBUF, 0) >0){
-			printf("%s", message);
-			printf(">> ");
-			fflush(stdout);
-		}
-
-		bzero(message, MAXBUF);
+		recv_message(client_sockfd);
 	}
+}
+
+int create_user(int sockfd){
+	char password[50];
+
+	//username
+	recv_message(sockfd);
+	fflush(stdin);
+	if(fgets(username, 50, stdin)==NULL){
+		printf("fgets error\n");
+		return -1;
+	}
+	char *p;
+	p = strchr(username, '\n');
+	if (p) {
+		*p = '\0';
+	}
+	send_mesage(sockfd, username, 'U', "user");
+
+	//password
+	recv_message(sockfd);
+	fflush(stdin);
+	if(fgets(password, 50, stdin)==NULL){
+		printf("fgets error\n");
+		return -1;
+	}
+	p = strchr(password, '\n');
+	if (p) {
+		*p = '\0';
+	}
+	send_mesage(sockfd, password, 'P', "user");
+
+	recv_message(sockfd);
+
+
+  return 0;
+}
+
+int client_authentication(int sockfd){
+  char password[50];
+  int ok;
+  do{
+    ok=-1;
+    //username
+		recv_message(sockfd); //welcome message
+		fflush(stdin);
+		if(fgets(username, 50, stdin)==NULL){ // username
+			printf("fgets error\n");
+			return -1;
+		}
+		char *p;
+		p = strchr(username, '\n');
+    if (p) {
+      *p = '\0';
+    }
+		//printf("this is the username -%s-", username);
+		send_mesage(sockfd, username, 'U', "user");
+
+    if(recv_message(sockfd)<0){
+      create_user(sockfd);
+    }else{
+      do{
+				//password
+				recv_message(sockfd);
+				fflush(stdin);
+				if(fgets(password, 50, stdin)==NULL){ // password
+					printf("fgets error\n");
+					return -1;
+				}
+				char *p;
+				p = strchr(password, '\n');
+		    if (p) {
+		      *p = '\0';
+		    }
+				send_mesage(sockfd, password, 'P', "user");
+
+        ok=recv_message(sockfd);
+
+      }while(ok<0);
+    }
+
+  }while(ok<0);
+  return 1;
 }

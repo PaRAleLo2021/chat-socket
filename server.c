@@ -9,8 +9,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include "function.c"
-#include "authentication.h"
+#include "server-function.c"
 
 #define SERVER_PORT 5000
 #define MAXBUF 2048
@@ -51,18 +50,37 @@ void queue_remove(int sockfd){
 }
 
 /**Send message to all clients**/
-void send_message(char *s, int sockfd){
+void send_message_to_all(char *s, char cmd){
+  int size_int;
+  char size_str[5];
 	pthread_mutex_lock(&clients_mutex);
-	for(int i=0; i<MAXCLIENTS; ++i){
-		if(clients[i]){
-				if(send(clients[i], s, MAXBUF, 0) < 0){
-					printf("error send_message()");
-					break;
-				}
-		}
-	}
+  switch (cmd) {
+    //case message is from server and neds to be constructed
+    case 'S':
+      for(int i=0; i<MAXCLIENTS; ++i){
+        if(clients[i]){
+          if(send_mesage(clients[i], s, 'S', "server") < 0){
+              printf("error send_message_to_all()");
+              break;
+          }
+        }
+      }
+      break;
+    //case message from client to be fowarded
+    default:
+      strncpy(size_str,s+1,5);
+      size_int=atoi(size_str);
+      for(int i=0; i<MAXCLIENTS; ++i){
+        if(clients[i]){
+          if((send(clients[i], s, 78+size_int , 0)) <=0){
+            printf("error send_message_to_all()");
+          }
+        }
+      }
+  }
 	pthread_mutex_unlock(&clients_mutex);
 }
+
 
 int main(int argc, char* argv[]){
   concurent_server();
@@ -114,82 +132,59 @@ void concurent_server(){
 			continue;
 		}
 
+    int *client_sockfd_help=(int *)malloc(sizeof(int));
+      if(client_sockfd_help==NULL)
+      {
+          printf("Memory not allocated\n");
+          exit(0);
+      }
+      *client_sockfd_help=client_sockfd;
+
 		/* Add client to the queue and fork thread */
-		queue_add(client_sockfd);
-		pthread_create(&tid, NULL, &client_connection, (void*)&client_sockfd);
+		pthread_create(&tid, NULL, &client_connection, (void*)client_sockfd_help);
 	}
 }
 
 void *client_connection(void *arg){
-  char message[MAXBUF];
-    //char welcome_string[MAXBUF];
-    
+  char message[MAXBUF+80];
+  char client_username[50];
+
 	no_clients++;
-	int *client_sockfd=(int *)malloc(sizeof(int));
-    if(client_sockfd==NULL)
-    {
-        printf("Memory not allocated\n");
-        exit(0);
-    }    
-    *client_sockfd=*(int *)arg;
-  fcntl(*client_sockfd, F_SETFL, O_NONBLOCK);
-/*
-  bzero(welcome_string, MAXBUF);
-  strncpy(welcome_string, "Welcome!\nWhat should people call you?\n", MAXBUF);
-  
-  send(*client_sockfd, welcome_string, MAXBUF, 0);
-  
-  printf("***\n");
-  
-  
-  char username[50];
-  char password[50];
-  recv(*client_sockfd, username, 50, 0);
-  
-  
-  strncpy(welcome_string, "Password?\n", MAXBUF);
-  send(*client_sockfd, welcome_string, MAXBUF, 0);
-  
-  recv(*client_sockfd, password, 50, 0);
-  
-  
-  int size=11;
-  char s[size];
-  strcpy(s, get_current_date(s, size));
-  struct user *this_user=search_user(username);
-  if(this_user==NULL)
-  {
-      add_user(username, password, s, s);
+	int *client_sockfd=(int *)arg;
+
+  if(client_authentication(*client_sockfd, client_username)<0){
+    printf("Client connection failed\n");
+    return NULL;
   }
-  
-  int verify=check_password(username, password);
-  if(verify==0)
-  {
-      printf("Access denied\n");
-      return NULL;
-  }
-      
-  queue_add(*client_sockfd);*/
-  printf("Someone entered\n");
-  send_message("Someone entered\n", *client_sockfd);
+
+  //fcntl(*client_sockfd, F_SETFL, O_NONBLOCK);
+
+  queue_add(*client_sockfd);
+
+  /*********Chat Messaging********/
+
+  printf("-%s entered chat-\n",client_username);
+  sprintf(message, "%s entered chat\n", client_username);
+  send_message_to_all(message, 'S');
 
 	while(1){
 		int rcv_len = recv(*client_sockfd, message, MAXBUF, 0);
-        if(rcv_len==0)
-        {
-            printf("Someone exited\n");
-            send_message("Someone exited\n", *client_sockfd);
-            break;
-        }
+    if(rcv_len==0){
+      printf("-%s exited chat-\n",client_username);
+      sprintf(message, "%s exited chat\n", client_username);
+      send_message_to_all(message,'S');
+      break;
+    }
 		if (rcv_len > 0){
-            printf("Received msg: %s", message);
-            if(strcmp("exit\n", message)==0){
-                printf("Someone exited\n");
-                send_message("Someone exited\n", *client_sockfd);
-                break;
-            }
-			if(strlen(message) > 0){
-				send_message(message, *client_sockfd);
+      //printf("Received msg: %s", message);
+      if(strcmp("exit\n", message+78)==0){
+        printf("-%s exited chat-\n",client_username);
+        sprintf(message, "%s exited chat\n", client_username);
+        send_message_to_all(message, 'S');
+        break;
+      }
+		  if(strlen(message) > 0){
+			  send_message_to_all(message, 'M');
 			}
 		}
 		bzero(message, MAXBUF);
@@ -200,6 +195,6 @@ void *client_connection(void *arg){
   queue_remove(*client_sockfd);
   no_clients--;
   pthread_detach(pthread_self());
-    free(client_sockfd);
+  free(client_sockfd);
 	return NULL;
 }
