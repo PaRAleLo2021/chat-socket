@@ -7,7 +7,7 @@ int create_user(int sockfd){
 	char cmd[1], username[50], password[50], date[11];
 	send_mesage(sockfd, "User does not exist. Create a new user.\nusername: ", 'S', "server");
 
-  if(recv(sockfd, cmd, 1, 0) < 0){
+  if(recv(sockfd, cmd, 1, 0) <= 0){
     printf("error receiving message");
     return -1;
   }
@@ -22,7 +22,7 @@ int create_user(int sockfd){
 
 
   send_mesage(sockfd, "password: ", 'S', "server");
-  if(recv(sockfd, cmd, 1, 0) < 0){
+  if(recv(sockfd, cmd, 1, 0) <= 0){
     printf("error receiving message");
     return -1;
   }
@@ -55,7 +55,7 @@ int client_authentication(int sockfd,char *client_username){
     //username
     send_mesage(sockfd, "Welcome! What should people call you?\nusername: ", 'S', "server");
     //send(sockfd, message, MAXBUF, 0);
-    if(recv(sockfd, cmd, 1, 0) < 0){
+    if(recv(sockfd, cmd, 1, 0) <= 0){
       printf("error receiving message");
       return -2;
     }
@@ -78,7 +78,7 @@ int client_authentication(int sockfd,char *client_username){
       do{
         send_mesage(sockfd, "password: ", 'S', "server");
 
-        if(recv(sockfd, cmd, 1, 0) < 0){
+        if(recv(sockfd, cmd, 1, 0) <= 0){
           printf("error receiving message");
           return -2;
         }

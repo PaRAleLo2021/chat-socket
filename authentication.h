@@ -60,6 +60,12 @@ struct user* search_user(char *username){
 		return NULL;
 	}
 
+	fseek(f, 0, SEEK_END);
+	long size=ftell(f);
+	if(size==0)
+		return NULL;
+	fseek(f, 0, SEEK_SET);
+    
 	struct user* u = (struct user*)malloc(sizeof(struct user));
 	char buf[200];
 

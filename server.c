@@ -183,6 +183,7 @@ void *client_connection(void *arg){
         send_message_to_all(message, 'S');
         break;
       }
+      if(strcmp("\n", message+78)!=0)
 		  if(strlen(message) > 0){
 			  send_message_to_all(message, 'M');
 			}
