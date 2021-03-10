@@ -1,5 +1,6 @@
 #include<string.h>
 #include<time.h>
+#include<assert.h>
 
 struct user{
 	char username[50];
@@ -29,6 +30,26 @@ char *get_current_date(char *s, int size){
     bzero(s, size);
     sprintf(s, "%d-%d-%d", tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday);
     return s;
+}
+
+//Should use like this:
+//char buf[50];
+//strcpy(buf, hash_password((unsigned char*)string, buf));
+char *hash_password(unsigned char *str, char *new){
+	unsigned long h = 5381;
+	int c;
+	
+	while ((c = *str++))
+		h = ((h << 5) + h) + c;
+	
+	const int n = snprintf(NULL, 0, "%lx", h);
+	assert(n > 0);
+	bzero(new, n+1);
+	int cc = snprintf(new, n+1, "%lx", h);
+	assert(new[n] == '\0');
+	assert(cc == n);
+
+	return new;
 }
 
 //Should use free(u) after every call to this function!
@@ -76,9 +97,13 @@ int add_user(char *username, char *password, char *enroll_date, char *last_activ
 	}
 
 	struct user* u = search_user(username);
+
+	char hashed_password[50];
+	strcpy(hashed_password, hash_password((unsigned char *)password, hashed_password));
+
 	if(u == NULL){
 		//printf("ADDED %s\n", username);
-		fprintf(f, "%s %s %s %s\n", username, password, enroll_date, last_active_date);
+		fprintf(f, "%s %s %s %s\n", username, hashed_password, enroll_date, last_active_date);
 	}else{
 		//printf("Username %s already used!\n", username);
 		free(u);
@@ -93,9 +118,13 @@ int add_user(char *username, char *password, char *enroll_date, char *last_activ
 
 int check_password(char *username, char *password){
 	struct user *u = search_user(username);
+
+	char hashed[50];
+	strcpy(hashed, hash_password((unsigned char*)password, hashed));
+
 	char pw[50];
 	strcpy(pw, u->password);
 	free(u);
 
-	return strcmp(pw, password) == 0 ? 1 : 0;
+	return strcmp(pw, hashed) == 0 ? 1 : 0;
 }
