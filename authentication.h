@@ -5,7 +5,7 @@ struct user{
 	char username[50];
 	char password[50];
 	char enroll_date[11]; // yyyy-mm-dd
-	char last_active_date[11]; 
+	char last_active_date[11];
 };
 
 char *users_file = "users.txt";
@@ -16,16 +16,16 @@ char *get_current_time(char *s, int size){
 
     time ( &rawtime );
     mytime = localtime ( &rawtime );
-    
+
     bzero(s, size);
-    sprintf(s, "%d:%d:%d\n", mytime->tm_hour+2, mytime->tm_min, mytime->tm_sec);
+    sprintf(s, "%d:%d:%d", mytime->tm_hour+2, mytime->tm_min, mytime->tm_sec);
     return s;
 }
 
 char *get_current_date(char *s, int size){
     time_t t = time(NULL);
     struct tm *tm = localtime(&t);
-    
+
     bzero(s, size);
     sprintf(s, "%d-%d-%d", tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday);
     return s;
@@ -49,7 +49,7 @@ struct user* search_user(char *username){
 
 		if(strcmp(token, username) == 0){
 			strcpy(u->username, token);
-   			
+
       		token = strtok(NULL, " ");
       		strcpy(u->password, token);
 
@@ -58,7 +58,7 @@ struct user* search_user(char *username){
 
       		token = strtok(NULL, " ");
       		strcpy(u->last_active_date, token);
-		
+
 			fclose(f);
 			return u;
 		}
