@@ -5,18 +5,20 @@
 * [Compiling and running]()
 
 ## Project Specifications
-A program that offers a chat room for multiple clients.
-written in C, using BSD sockets on Linux or UNIX
+A program that offers a **chat room for multiple clients**.
+
+**written in C, using BSD sockets on Linux or UNIX**
 
 ![client server connection](https://github.com/alexandra-doris/Images/blob/main/client-server.png)
 
-Components:
+**Components:**
 * concurrent server - serves multiple clients at the same time, using a thread for each
 * client - has two threads, one for getting input from the user and sending it to the server and one for receiving messages from the server
 
 ### Server program(single):
 Manages a chat room by accepting multiple simultaneous connections from
 clients who want to talk. 
+
 Authentication: Clients have to authenticate with a name and a password.The name must be unique.
 
 ### Client program(multiple):
