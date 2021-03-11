@@ -70,7 +70,7 @@ int recv_message(int sockfd){
 	/***********Message Header**********/
 	char header[8];
 	int message_size;
-	if(recv(sockfd, header, 6, 0) < 0){
+	if(recv(sockfd, header, 6, 0) <= 0){
 		printf("error receiving message");
 		return -1;
 	}

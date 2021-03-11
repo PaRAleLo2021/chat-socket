@@ -46,10 +46,10 @@ int create_user(int sockfd){
 }
 
 int client_authentication(int sockfd,char *client_username){
-  char cmd[1], username[50], password[50];
+  char cmd[1], username[50], password[50], message[20];
   int ok;
 
-
+	int i;
   do{
     ok=-1;
     //username
@@ -75,8 +75,10 @@ int client_authentication(int sockfd,char *client_username){
     }
     else{
       send_mesage(sockfd, "y", 'Q', "server");
+			i=1;
       do{
-        send_mesage(sockfd, "password: ", 'S', "server");
+				sprintf(message, "password(try%d/3): ", i);
+        send_mesage(sockfd, message, 'S', "server");
 
         if(recv(sockfd, cmd, 1, 0) <= 0){
           printf("error receiving message");
@@ -91,12 +93,15 @@ int client_authentication(int sockfd,char *client_username){
           printf("error password not received");
           return -1;
         }
-
         ok=check_password(username, password); // 1- OK | 0 - NOT OK
         if(ok==1)
           send_mesage(sockfd, "y", 'Q', "server");
-        else
+        else{
           send_mesage(sockfd, "n", 'Q', "server");
+					i++;
+					if(i>3)
+						return -1;
+				}
       }while(ok<=0);
     }
 

@@ -100,7 +100,8 @@ void *send_msg(void *arg){
 
 void *recv_msg(void *arg){
 	while(1){
-		recv_message(client_sockfd);
+		if(recv_message(client_sockfd)<0)
+			exit(1);
 	}
 }
 
@@ -143,6 +144,8 @@ int create_user(int sockfd){
 int client_authentication(int sockfd){
   char password[50];
   int ok;
+
+	int i;
   do{
     ok=-1;
     //username
@@ -159,7 +162,7 @@ int client_authentication(int sockfd){
     }
 		//printf("this is the username -%s-", username);
 		send_mesage(sockfd, username, 'U', "user");
-
+		i=1;
     if(recv_message(sockfd)<0){
       create_user(sockfd);
     }else{
@@ -179,7 +182,11 @@ int client_authentication(int sockfd){
 				send_mesage(sockfd, password, 'P', "user");
 
         ok=recv_message(sockfd);
-
+				if(ok<0){
+					i++;
+					if(i>3)
+						return -1;
+				}
       }while(ok<0);
     }
 
